@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Internship & Placement Tracker</title>
+  <style>
+    body { font-family: Arial; margin: 20px; background: #fafafa; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+    th { background: #f4f4f4; }
+    form { margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; }
+    input, button { padding: 8px; }
+    button { cursor: pointer; }
+    .row { display: flex; gap: 10px; width: 100%; flex-wrap: wrap; }
+    .row > * { flex: 1 1 180px; }
+    .upload { margin-top: 30px; padding: 12px; background: #fff; border: 1px solid #eee; border-radius: 6px; }
+    .muted { color: #666; font-size: 12px; }
+    .url { margin-top: 8px; word-break: break-all; }
+    .actions button { margin: 0 4px; }
+    .edit-input { width: 95%; padding: 6px; }
+  </style>
+</head>
+<body>
+  <h1>📊 Internship & Placement Tracker</h1>
+
+  <!-- Add Student Form -->
+  <form id="studentForm">
+    <div class="row">
+      <input type="text" id="rollNumber" placeholder="Roll Number" required>
+      <input type="text" id="firstName" placeholder="First Name" required>
+      <input type="text" id="lastName" placeholder="Last Name" required>
+      <input type="email" id="email" placeholder="Email" required>
+    </div>
+    <button type="submit">➕ Add Student</button>
+  </form>
+
+  <!-- Resume Upload (general) -->
+  <div class="upload">
+    <h3>📄 Upload Resume (general)</h3>
+    <input type="file" id="resumeFile" accept="application/pdf,.doc,.docx" />
+    <button id="uploadBtn">⬆️ Upload</button>
+    <div id="uploadResult" class="url"></div>
+    <div class="muted">Requires backend /upload route with Azure SAS upload configured.</div>
+  </div>
+
+  <!-- Student Table -->
+  <table>
+    <thead>
+      <tr>
+        <th>StudentID</th>
+        <th>RollNumber</th>
+        <th>FirstName</th>
+        <th>LastName</th>
+        <th>Email</th>
+        <th>Resume</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="studentsTable"></tbody>
+  </table>
+
+<script>
+const API = "http://localhost:3000/api"; // Backend API
+let editingId = null;
+
+// Escape HTML
+function escapeHtml(str) {
+  return String(str || '').replace(/[&<>"]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s]));
+}
+
+// Render student row
+function rowHtml(s) {
+  const isEditing = editingId === s.StudentID;
+  const resumeCell = s.ResumeUrl ? `<a href="${s.ResumeUrl}" target="_blank">View</a>` : '—';
+
+  return `
+    <tr>
+      <td>${s.StudentID}</td>
+      <td>${isEditing ? `<input class="edit-input" id="edit-roll-${s.StudentID}" value="${escapeHtml(s.RollNumber)}">` : escapeHtml(s.RollNumber)}</td>
+      <td>${isEditing ? `<input class="edit-input" id="edit-first-${s.StudentID}" value="${escapeHtml(s.FirstName)}">` : escapeHtml(s.FirstName)}</td>
+      <td>${isEditing ? `<input class="edit-input" id="edit-last-${s.StudentID}" value="${escapeHtml(s.LastName)}">` : escapeHtml(s.LastName)}</td>
+      <td>${isEditing ? `<input class="edit-input" id="edit-email-${s.StudentID}" value="${escapeHtml(s.Email)}">` : escapeHtml(s.Email)}</td>
+      <td>
+        <div>${resumeCell}</div>
+        <div style="margin-top:6px">
+          <input type="file" accept="application/pdf,.doc,.docx" id="file-${s.StudentID}">
+          <button onclick="uploadAndAttach(${s.StudentID})">Attach</button>
+        </div>
+      </td>
+      <td class="actions">
+        ${!isEditing ? `<button onclick="startEdit(${s.StudentID})">Edit</button>` : ''}
+        ${isEditing ? `<button onclick="saveEdit(${s.StudentID})">Save</button>` : ''}
+        ${isEditing ? `<button onclick="cancelEdit()">Cancel</button>` : ''}
+        <button onclick="deleteStudent(${s.StudentID})">❌ Delete</button>
+      </td>
+    </tr>
+  `;
+}
+
+// Load students
+async function loadStudents() {
+  try {
+    const res = await fetch(`${API}/students`);
+    const students = await res.json();
+    document.getElementById("studentsTable").innerHTML = students.map(rowHtml).join('');
+  } catch (err) {
+    console.error("Error loading students:", err);
+    alert("Failed to load students.");
+  }
+}
+
+// Student CRUD
+function startEdit(id) { editingId = id; loadStudents(); }
+function cancelEdit() { editingId = null; loadStudents(); }
+async function saveEdit(id) {
+  const body = {
+    RollNumber: document.getElementById(`edit-roll-${id}`).value.trim(),
+    FirstName: document.getElementById(`edit-first-${id}`).value.trim(),
+    LastName: document.getElementById(`edit-last-${id}`).value.trim(),
+    Email: document.getElementById(`edit-email-${id}`).value.trim()
+  };
+  try {
+    const res = await fetch(`${API}/students/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    if (!res.ok) throw new Error(await res.text());
+    editingId = null;
+    await loadStudents();
+  } catch(err) { alert('Save failed: '+err.message); }
+}
+
+async function deleteStudent(id) {
+  if (!confirm(`Delete student ${id}?`)) return;
+  try {
+    const res = await fetch(`${API}/students/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error(await res.text());
+    await loadStudents();
+  } catch(err) { alert('Delete failed: '+err.message); }
+}
+
+// Upload & attach resume for a student
+async function uploadAndAttach(studentId) {
+  const input = document.getElementById(`file-${studentId}`);
+  const file = input?.files?.[0];
+  if (!file) { alert('Choose a file first'); return; }
+
+  const form = new FormData();
+  form.append('file', file);
+
+  try {
+    // Upload file to backend (backend generates SAS URL)
+    const uploadRes = await fetch(`${API}/upload`, { method: 'POST', body: form });
+    if (!uploadRes.ok) throw new Error(await uploadRes.text());
+
+    const { url } = await uploadRes.json();
+    if (!url) throw new Error('No URL returned from upload');
+
+    // Update student with resume URL
+    const updateRes = await fetch(`${API}/students/${studentId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ResumeUrl: url })
+    });
+    if (!updateRes.ok) throw new Error(await updateRes.text());
+
+    await loadStudents();
+    alert('Resume uploaded and attached!');
+  } catch (err) {
+    alert('Attach failed: ' + err.message);
+    console.error(err);
+  }
+}
+// General resume upload
+document.getElementById('uploadBtn').addEventListener('click', async () => {
+  const fileInput = document.getElementById('resumeFile');
+  const file = fileInput.files?.[0];
+  if (!file) { alert('Choose a file first'); return; }
+
+  const form = new FormData();
+  form.append('file', file);
+
+  try {
+    const res = await fetch(`${API}/upload`, { method:'POST', body: form });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    document.getElementById('uploadResult').innerHTML = `Uploaded: <a href="${data.url}" target="_blank">${data.url}</a>`;
+    fileInput.value = '';
+  } catch(err) {
+    alert('Upload failed: '+err.message);
+    console.error(err);
+  }
+});
+
+// Add student
+document.getElementById('studentForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const payload = {
+    RollNumber: document.getElementById('rollNumber').value.trim(),
+    FirstName: document.getElementById('firstName').value.trim(),
+    LastName: document.getElementById('lastName').value.trim(),
+    Email: document.getElementById('email').value.trim()
+  };
+  try {
+    const res = await fetch(`${API}/students`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    if (!res.ok) throw new Error(await res.text());
+    e.target.reset();
+    await loadStudents();
+  } catch(err) { alert('Add student failed: '+err.message); console.error(err); }
+});
+
+// Expose functions globally
+window.startEdit = startEdit;
+window.cancelEdit = cancelEdit;
+window.saveEdit = saveEdit;
+window.uploadAndAttach = uploadAndAttach;
+
+// Initial load
+loadStudents();
+</script>
+</body>
+</html>

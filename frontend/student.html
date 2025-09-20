@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Student Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background-color: #f8f9fa; }
+    .card { border-radius: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+    #loader { display: none; }
+  </style>
+</head>
+<body class="p-4">
+
+  <div class="container">
+    <h2 class="mb-4 text-primary">🎓 Student Dashboard</h2>
+
+    <!-- Alerts -->
+    <div id="alertBox" class="alert d-none" role="alert"></div>
+
+    <!-- Roll Number Input -->
+    <div class="card p-4 mb-4">
+      <label class="form-label">Enter Roll Number</label>
+      <input type="text" id="studentId" class="form-control" placeholder="e.g., 101">
+      <button onclick="fetchStudent()" class="btn btn-primary mt-3">Get Profile</button>
+    </div>
+
+    <!-- Loader -->
+    <div id="loader" class="text-center mb-3">
+      <div class="spinner-border text-primary" role="status"></div>
+      <p>Loading...</p>
+    </div>
+
+    <!-- Student Profile Card -->
+    <div id="studentProfile" class="card p-4 d-none">
+      <h4 class="mb-3">👤 Profile</h4>
+      <p><strong>Name:</strong> <span id="sName"></span></p>
+      <p><strong>Email:</strong> <span id="sEmail"></span></p>
+      <p><strong>Status:</strong> <span id="sStatus" class="badge bg-secondary"></span></p>
+      <p><strong>Resume:</strong> <a id="sResume" href="#" target="_blank">Not Uploaded</a></p>
+      <p><strong>Offer Letter:</strong> <a id="sOffer" href="#" target="_blank">Not Uploaded</a></p>
+
+      <!-- Resume Upload -->
+      <div class="mb-3">
+        <label class="form-label">Upload Resume (PDF)</label>
+        <input type="file" id="resumeFile" class="form-control">
+        <button onclick="uploadFile('resume')" class="btn btn-success mt-2">Upload & Update</button>
+      </div>
+
+      <!-- Offer Letter Upload -->
+      <div class="mb-3">
+        <label class="form-label">Upload Offer Letter</label>
+        <input type="file" id="offerFile" class="form-control">
+        <button onclick="uploadFile('offer')" class="btn btn-warning mt-2">Upload Offer Letter</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = "http://localhost:3000"; // Replace with Azure API URL later
+    let currentStudentId = null;
+
+    function showAlert(message, type = "success") {
+      const alertBox = document.getElementById("alertBox");
+      alertBox.className = `alert alert-${type}`;
+      alertBox.innerText = message;
+      alertBox.classList.remove("d-none");
+      setTimeout(() => alertBox.classList.add("d-none"), 4000);
+    }
+
+    async function fetchStudent() {
+      const id = document.getElementById("studentId").value.trim();
+      if (!id) return showAlert("Please enter Roll Number", "warning");
+
+      document.getElementById("loader").style.display = "block";
+      document.getElementById("studentProfile").classList.add("d-none");
+
+      try {
+        const res = await fetch(`${API_BASE}/students/${id}`);
+        if (!res.ok) throw new Error("Student not found");
+
+        const student = await res.json();
+        currentStudentId = id;
+
+        document.getElementById("sName").innerText = student.Name;
+        document.getElementById("sEmail").innerText = student.Email;
+        document.getElementById("sStatus").innerText = student.Status || "Not Updated";
+
+        document.getElementById("sResume").href = student.ResumeURL || "#";
+        document.getElementById("sResume").innerText = student.ResumeURL ? "View" : "Not Uploaded";
+
+        document.getElementById("sOffer").href = student.OfferLetterURL || "#";
+        document.getElementById("sOffer").innerText = student.OfferLetterURL ? "View" : "Not Uploaded";
+
+        document.getElementById("studentProfile").classList.remove("d-none");
+      } catch (err) {
+        showAlert(err.message, "danger");
+      } finally {
+        document.getElementById("loader").style.display = "none";
+      }
+    }
+
+    async function uploadFile(type) {
+      const fileInput = type === "resume" ? document.getElementById("resumeFile") : document.getElementById("offerFile");
+      if (!fileInput.files.length) return showAlert("Select a file first", "warning");
+
+      try {
+        const formData = new FormData();
+        formData.append(type, fileInput.files[0]);
+
+        const uploadRes = await fetch(`${API_BASE}/upload`, { method: "POST", body: formData });
+        if (!uploadRes.ok) throw new Error("File upload failed");
+
+        const { url } = await uploadRes.json();
+
+        const payload = type === "resume"
+          ? { ResumeURL: url }
+          : { OfferLetterURL: url, Status: "Placed" };
+
+        const updateRes = await fetch(`${API_BASE}/students/${currentStudentId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        if (!updateRes.ok) throw new Error("Failed to update student record");
+
+        showAlert(`${type === "resume" ? "Resume" : "Offer letter"} uploaded successfully!`);
+        fetchStudent(); // Refresh profile
+      } catch (err) {
+        showAlert(err.message, "danger");
+      }
+    }
+  </script>
+</body>
+</html>

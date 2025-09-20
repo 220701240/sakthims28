@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Faculty Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+    }
+    h2 {
+      margin-top: 30px;
+    }
+    form {
+      margin-bottom: 20px;
+      padding: 15px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background: #f8f8f8;
+    }
+    label {
+      display: block;
+      margin-top: 10px;
+    }
+    input, button {
+      margin-top: 5px;
+      padding: 6px;
+      width: 95%;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 15px;
+    }
+    table, th, td {
+      border: 1px solid #ddd;
+      text-align: left;
+      padding: 8px;
+    }
+    th {
+      background: #efefef;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Faculty Dashboard</h1>
+
+  <!-- ✅ Internship Form -->
+  <h2>Add Internship</h2>
+  <form id="internshipForm">
+    <label>Student ID: <input type="number" id="internStudentId" required></label>
+    <label>Company: <input type="text" id="company" required></label>
+    <label>Role: <input type="text" id="role" required></label>
+    <label>Start Date: <input type="date" id="startDate" required></label>
+    <label>End Date: <input type="date" id="endDate" required></label>
+    <button type="submit">Add Internship</button>
+  </form>
+
+  <!-- Internship Table -->
+  <h2>Internship Records</h2>
+  <table id="internshipTable">
+    <thead>
+      <tr>
+        <th>Student ID</th>
+        <th>Company</th>
+        <th>Role</th>
+        <th>Start Date</th>
+        <th>End Date</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <!-- ✅ Placement Form -->
+  <h2>Add Placement</h2>
+  <form id="placementForm">
+    <label>Student ID: <input type="number" id="placeStudentId" required></label>
+    <label>Company: <input type="text" id="placeCompany" required></label>
+    <label>Package: <input type="text" id="package" required></label>
+    <label>Placement Date: <input type="date" id="offerDate" required></label>
+    <button type="submit">Add Placement</button>
+  </form>
+
+  <!-- Placement Table -->
+  <h2>Placement Records</h2>
+  <table id="placementTable">
+    <thead>
+      <tr>
+        <th>Student ID</th>
+        <th>Company</th>
+        <th>Package</th>
+        <th>Placement Date</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <h2>Get AI Recommendations</h2>
+<form id="aiForm">
+  <input type="text" id="studentName" placeholder="Student Name" required />
+  <input type="text" id="skills" placeholder="Skills (comma separated)" required />
+  <button type="submit">Get Recommendations</button>
+</form>
+<div id="aiResult"></div>
+
+<script>
+document.getElementById('aiForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const studentName = document.getElementById('studentName').value;
+  const skills = document.getElementById('skills').value;
+
+  try {
+    const res = await fetch('/api/recommendations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ studentName, skills })
+    });
+
+    if (!res.ok) throw new Error('Failed to get recommendations');
+    const data = await res.json();
+    document.getElementById('aiResult').innerText = data.recommendations.join(', ');
+  } catch (err) {
+    console.error(err);
+    document.getElementById('aiResult').innerText = 'Error fetching recommendations';
+  }
+});
+
+
+
+
+
+
+  
+    // ✅ Load Internship Records
+    async function loadInternships() {
+      try {
+        const res = await fetch('/api/internships');
+        if (!res.ok) throw new Error('Failed to fetch internships');
+        const data = await res.json();
+        renderInternshipTable(data);
+      } catch (err) {
+        console.error('Error loading internships:', err);
+      }
+    }
+
+    // ✅ Render Internship Table
+    function renderInternshipTable(data) {
+      const tbody = document.querySelector('#internshipTable tbody');
+      tbody.innerHTML = '';
+      data.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${row.StudentID}</td>
+          <td>${row.Company}</td>
+          <td>${row.Role}</td>
+          <td>${row.StartDate ? row.StartDate.split('T')[0] : ''}</td>
+          <td>${row.EndDate ? row.EndDate.split('T')[0] : ''}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // ✅ Load Placement Records
+    async function loadPlacements() {
+      try {
+        const res = await fetch('/api/placements');
+        if (!res.ok) throw new Error('Failed to fetch placements');
+        const data = await res.json();
+        renderPlacementTable(data);
+      } catch (err) {
+        console.error('Error loading placements:', err);
+      }
+    }
+
+    // ✅ Render Placement Table
+    function renderPlacementTable(data) {
+      const tbody = document.querySelector('#placementTable tbody');
+      tbody.innerHTML = '';
+      data.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${row.StudentID}</td>
+          <td>${row.Company}</td>
+          <td>${row.Package}</td>
+          <td>${row.PlacementDate ? row.PlacementDate.split('T')[0] : ''}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // ✅ Handle Internship Form Submission
+    document.getElementById('internshipForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const data = {
+        studentId: document.getElementById('internStudentId').value,
+        company: document.getElementById('company').value,
+        role: document.getElementById('role').value,
+        startDate: document.getElementById('startDate').value,
+        endDate: document.getElementById('endDate').value
+      };
+
+      try {
+        const res = await fetch('/api/internships', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error('Failed to add internship');
+        await loadInternships();
+        e.target.reset();
+      } catch (err) {
+        console.error('Error adding internship:', err);
+      }
+    });
+
+    // ✅ Handle Placement Form Submission
+    document.getElementById('placementForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const data = {
+        studentId: document.getElementById('placeStudentId').value,
+        company: document.getElementById('placeCompany').value,
+        package: document.getElementById('package').value,
+        offerDate: document.getElementById('offerDate').value
+      };
+
+      try {
+        const res = await fetch('/api/placements', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error('Failed to add placement');
+        await loadPlacements();
+        e.target.reset();
+      } catch (err) {
+        console.error('Error adding placement:', err);
+      }
+    });
+    
+
+    // ✅ Initial Load
+    window.onload = () => {
+      loadInternships();
+      loadPlacements();
+    };
+  </script>
+</body>
+</html>
